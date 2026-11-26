@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { WarpCarousel, type WarpCarouselHandle } from "@/components/ui/warp-carousel";
+import { scrollRingProgress } from "@/lib/warp-carousel-motion";
 import {
   ArrowUpRight,
   Asterisk,
@@ -44,11 +46,9 @@ const projects: WorkItem[] = [
 
 const HEADING_LETTERS = Array.from("SPECIALIZATION");
 const LETTER_TILTS = [-8, 6, -5, 7, -6, 5, -7, 6, -5, 8, -6, 5, -7, 6];
-const CARD_BASE_Y = [-36, 36, -24, 40];
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
-const easeOutQuart = (t: number) => 1 - (1 - t) ** 4;
 const smoothstep = (a: number, b: number, x: number) => {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
@@ -58,7 +58,7 @@ export function Work() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const wordRef = useRef<HTMLHeadingElement | null>(null);
   const letterRefs = useRef<(HTMLSpanElement | null)[]>([]);
-  const slotRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const carouselRef = useRef<WarpCarouselHandle>(null);
   const barRef = useRef<HTMLDivElement | null>(null);
   const [hovered, setHovered] = useState<number | null>(null);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -83,7 +83,6 @@ export function Work() {
       const total = wrap.offsetHeight - window.innerHeight;
       const raw = total > 0 ? -wrap.getBoundingClientRect().top / total : 0;
       const p = clamp01(raw);
-      const isDesktop = document.documentElement.clientWidth >= 1024;
 
       // Phase 1 (0.00 -> 0.34): staggered letter-by-letter rise of SPECIALIZATION
       letterRefs.current.forEach((el, i) => {
@@ -115,24 +114,7 @@ export function Work() {
         word.style.opacity = String(opacity);
       }
 
-      // Reveal the gallery in place, then give each card its own scroll-driven turn.
-      const galleryOpacity = smoothstep(0.34, 0.44, p);
-      slotRefs.current.forEach((slot, i) => {
-        if (!slot) return;
-        const cardStart = 0.44 + i * 0.12;
-        const u = clamp01((p - cardStart) / 0.12);
-        const turn = easeOutQuart(u);
-        const lift = u > 0 && u < 1 ? Math.sin(turn * Math.PI) : 0;
-        const baseY = isDesktop ? (CARD_BASE_Y[i] ?? 0) : i % 2 === 0 ? -8 : 8;
-        const y = baseY - lift * (isDesktop ? 42 : 16);
-        const z = lift * (isDesktop ? 100 : 36);
-        // Reset to the exact resting transform after the full turn.
-        const rotation = u > 0 && u < 1 ? turn * 360 : 0;
-
-        slot.style.transform = `translate3d(0px, ${y}px, ${z}px) rotateY(${rotation}deg)`;
-        slot.style.opacity = String(galleryOpacity);
-        slot.style.pointerEvents = galleryOpacity > 0.9 && (u === 0 || u === 1) ? "auto" : "none";
-      });
+      carouselRef.current?.setProgress(scrollRingProgress(p), smoothstep(0.34, 0.44, p));
 
       if (barRef.current) {
         barRef.current.style.transform = `scaleX(${p})`;
@@ -202,26 +184,19 @@ export function Work() {
             </h2>
           </div>
 
-          <div className="work-stage relative z-10 mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4 lg:gap-6">
+          <div className="relative z-10 h-full w-full">
+            <WarpCarousel ref={carouselRef} ariaLabel="Specializations">
               {projects.map((project, index) => (
-                <div
-                  key={project.name}
-                  ref={(el) => {
-                    slotRefs.current[index] = el;
-                  }}
-                  className="work-card-slot"
-                >
                   <WorkGlassCard
+                    key={project.name}
                     project={project}
                     isHighlighted={hovered === index}
                     onHoverChange={(on) =>
                       setHovered((prev) => (on ? index : prev === index ? null : prev))
                     }
                   />
-                </div>
               ))}
-            </div>
+            </WarpCarousel>
           </div>
 
           <div className="pointer-events-none absolute inset-x-0 bottom-7 flex justify-center">
