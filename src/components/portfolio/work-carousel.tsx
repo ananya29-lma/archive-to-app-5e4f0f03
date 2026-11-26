@@ -45,8 +45,6 @@ const projects: WorkItem[] = [
 const HEADING_LETTERS = Array.from("SPECIALIZATION");
 const LETTER_TILTS = [-8, 6, -5, 7, -6, 5, -7, 6, -5, 8, -6, 5, -7, 6];
 const CARD_BASE_Y = [-36, 36, -24, 40];
-const CARD_DRIFT_Y = [-22, -52, -16, -56];
-const CARD_DEPTH_X = [68, 22, -22, -68];
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
@@ -117,25 +115,23 @@ export function Work() {
         word.style.opacity = String(opacity);
       }
 
-      // Phase 3 (0.46 -> 0.84): all 4 cards emerge from depth into staggered spatial gallery
-      // Phase 4 (0.78 -> 1.00): gentle parallax drift while all 4 cards remain clearly visible
-      const driftT = smoothstep(0.78, 1.0, p);
+      // Reveal the gallery in place, then give each card its own scroll-driven turn.
+      const galleryOpacity = smoothstep(0.34, 0.44, p);
       slotRefs.current.forEach((slot, i) => {
         if (!slot) return;
-        const cardStart = 0.46 + i * 0.055;
-        const u = clamp01((p - cardStart) / 0.22);
-        const e = easeOutQuart(u);
+        const cardStart = 0.44 + i * 0.12;
+        const u = clamp01((p - cardStart) / 0.12);
+        const turn = easeOutQuart(u);
+        const lift = u > 0 && u < 1 ? Math.sin(turn * Math.PI) : 0;
         const baseY = isDesktop ? (CARD_BASE_Y[i] ?? 0) : i % 2 === 0 ? -8 : 8;
-        const driftY = isDesktop ? (CARD_DRIFT_Y[i] ?? -24) * driftT : -18 * driftT;
-        const fromX = isDesktop ? (CARD_DEPTH_X[i] ?? 0) : 0;
-        const x = (1 - e) * fromX;
-        const y = baseY + (1 - e) * 64 + driftY;
-        const z = -(1 - e) * 340;
-        const scale = 0.16 + 0.84 * e;
+        const y = baseY - lift * (isDesktop ? 42 : 16);
+        const z = lift * (isDesktop ? 100 : 36);
+        // Reset to the exact resting transform after the full turn.
+        const rotation = u > 0 && u < 1 ? turn * 360 : 0;
 
-        slot.style.transform = `translate3d(${x}px, ${y}px, ${z}px) scale(${scale})`;
-        slot.style.opacity = String(Math.min(1, e * 1.15));
-        slot.style.pointerEvents = e > 0.35 ? "auto" : "none";
+        slot.style.transform = `translate3d(0px, ${y}px, ${z}px) rotateY(${rotation}deg)`;
+        slot.style.opacity = String(galleryOpacity);
+        slot.style.pointerEvents = galleryOpacity > 0.9 && (u === 0 || u === 1) ? "auto" : "none";
       });
 
       if (barRef.current) {
